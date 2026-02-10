@@ -10,7 +10,11 @@ const app = express();
 
 /* ================= CORS SECURITY ================= */
 app.use(cors({
-  origin: ["https://infinitecollection.in.net"], // 🔁 put real domain
+  origin: ["https://infinitecollection.in.net",
+          "https://locahost:5500,
+           "https://127.0.0.1:5500"], // 🔁 put real domain
+  credentials: true
+  
 }));
 
 app.use(express.json());
@@ -86,6 +90,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on port", PORT);
 });
+
 
 
 
