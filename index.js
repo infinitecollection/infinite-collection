@@ -84,6 +84,7 @@ app.post("/verify-payment", (req, res) => {
   res.json({ status: "success" });
 });
 /* ================= MAKE ADMIN (TEMP ROUTE) ================= */
+app.get("/make-admin/:uid", async (req, res) =>{
   try {
     const uid = req.params.uid;
 
@@ -95,11 +96,12 @@ app.post("/verify-payment", (req, res) => {
     console.error(error);
     res.status(500).send("Error setting admin claim");
   }
-;
+});
 /* ================= START ================= */
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on port", PORT);
 });
+
 
