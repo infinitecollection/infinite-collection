@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const app = express();
 
+/* ================= CORS ================= */
 app.use(cors({
   origin: [
     "http://127.0.0.1:5500",
@@ -17,12 +18,14 @@ app.use(cors({
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
 app.use(express.json());
+
 app.get("/", (req, res) => {
   res.send("Infinite Collection Backend Running 🚀");
 });
 
-/* ================= FIREBASE ADMIN INIT ================= */
+/* ================= FIREBASE ================= */
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -31,13 +34,13 @@ admin.initializeApp({
   }),
 });
 
-/* ================= RAZORPAY INIT ================= */
+/* ================= RAZORPAY ================= */
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-/* ================= AUTH MIDDLEWARE ================= */
+/* ================= AUTH ================= */
 async function verifyFirebaseAuth(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -55,101 +58,24 @@ async function verifyFirebaseAuth(req, res, next) {
   }
 }
 
-/* ================= APP CHECK VERIFY ================= */
-async function verifyAppCheck(req, res, next) {
-  const token = req.header("X-Firebase-AppCheck");
-
-  if (!token)
-    return res.status(401).json({ error: "No AppCheck token" });
-
-  try {
-    await admin.appCheck().verifyToken(token);
-    next();
-  } catch {
-    return res.status(401).json({ error: "Invalid AppCheck token" });
-  }
-}
-
 /* ================= CREATE ORDER ================= */
-app.post("/create-order", async (req, res) => {
+app.post("/create-order", verifyFirebaseAuth, async (req, res) => {
   try {
 
     const { items } = req.body;
 
-    if (!Array.isArray(items) || !items.length)
-      return res.status(400).json({ error: "No items" });
-
-    let subtotal = 0;
-
-    for (const item of items) {
-
-      const snap = await db.collection("products").doc(item.id).get();
-
-      if (!snap.exists) continue;
-
-      const product = snap.data();
-
-      const price = Number(product.price);
-      const qty = Number(item.qty || 1);
-
-      subtotal += price * qty;
-    }
-
-    /* DELIVERY LOGIC */
-
-    let delivery = 0;
-
-    if (subtotal < 1200) {
-      delivery = 79;
-    }
-
-    const total = subtotal + delivery;
-
-    const order = await razorpay.orders.create({
-      amount: total * 100,
-      currency: "INR",
-      receipt: "rcpt_" + Date.now(),
-    });
-
-    res.json({
-      id: order.id,
-      amount: order.amount,
-      subtotal,
-      delivery,
-      total
-    });
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: "Order creation failed"
-    });
-
-  }
-});
-
-/* ================= VERIFY PAYMENT ================= */
-app.post("/create-order", async (req, res) => {
-  try {
-
-    const { items } = req.body;
-
-    if (!items || !items.length) {
+    if (!items || !items.length)
       return res.status(400).json({ error: "No items provided" });
-    }
 
     let subtotal = 0;
 
     items.forEach(item => {
       const price = Number(item.price) || 0;
       const qty = Number(item.qty) || 1;
-
       subtotal += price * qty;
     });
 
-    let delivery = subtotal >= 1200 ? 0 : 79;
+    const delivery = subtotal >= 1200 ? 0 : 79;
     const total = subtotal + delivery;
 
     const order = await razorpay.orders.create({
@@ -168,28 +94,39 @@ app.post("/create-order", async (req, res) => {
     res.status(500).json({ error: "Order creation failed" });
   }
 });
-/* ================= REFUND ================= */
-app.post("/refund", verifyFirebaseAuth, async (req, res) => {
-  try {
 
-    const { paymentId, amount } = req.body;
+/* ================= VERIFY PAYMENT ================= */
+app.post("/verify-payment", verifyFirebaseAuth, (req, res) => {
 
-    const refund = await razorpay.payments.refund(paymentId, {
-      amount: amount * 100,
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+  const expected = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(body.toString())
+    .digest("hex");
+
+  if (expected === razorpay_signature) {
+
+    res.json({
+      status: "success",
+      orderId: razorpay_order_id
     });
 
-    res.json(refund);
+  } else {
 
-  } catch (err) {
-
-    res.status(500).json({ error: err.message });
+    res.status(400).json({
+      status: "failed"
+    });
 
   }
+
 });
 
 /* ================= START SERVER ================= */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () =>
-  console.log("Server running on port", PORT)
-);
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
