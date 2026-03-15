@@ -3,7 +3,6 @@ import cors from "cors";
 import admin from "firebase-admin";
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -34,13 +33,6 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-
-/* ================= RATE LIMIT (ANTI BOT) ================= */
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-});
-app.use(limiter);
 
 /* ================= AUTH MIDDLEWARE ================= */
 async function verifyFirebaseAuth(req, res, next) {
