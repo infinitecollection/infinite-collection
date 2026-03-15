@@ -131,42 +131,43 @@ app.post("/create-order", async (req, res) => {
 });
 
 /* ================= VERIFY PAYMENT ================= */
-app.post("/verify-payment", verifyFirebaseAuth,  (req, res) => {
+app.post("/create-order", async (req, res) => {
   try {
 
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    } = req.body;
+    const { items } = req.body;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-
-    const expected = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    if (expected === razorpay_signature) {
-
-      res.json({
-        status: "success",
-        orderId: razorpay_order_id
-      });
-
-    } else {
-
-      res.status(400).json({
-        status: "failed"
-      });
-
+    if (!items || !items.length) {
+      return res.status(400).json({ error: "No items provided" });
     }
 
-  } catch {
-    res.status(500).json({ status: "error" });
+    let subtotal = 0;
+
+    items.forEach(item => {
+      const price = Number(item.price) || 0;
+      const qty = Number(item.qty) || 1;
+
+      subtotal += price * qty;
+    });
+
+    let delivery = subtotal >= 1200 ? 0 : 79;
+    const total = subtotal + delivery;
+
+    const order = await razorpay.orders.create({
+      amount: total * 100,
+      currency: "INR",
+      receipt: "order_" + Date.now()
+    });
+
+    res.json({
+      id: order.id,
+      amount: order.amount
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Order creation failed" });
   }
 });
-
 /* ================= REFUND ================= */
 app.post("/refund", verifyFirebaseAuth, async (req, res) => {
   try {
