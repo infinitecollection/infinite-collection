@@ -75,8 +75,13 @@ app.post("/create-order", verifyFirebaseAuth, async (req, res) => {
       subtotal += price * qty;
     });
 
-    const delivery = subtotal >= 1200 ? 0 : 79;
-    const total = subtotal + delivery;
+   const delivery =
+  subtotal > 1500 ? 0 :
+  subtotal >= 1000 ? 49 :
+  subtotal >= 500 ? 59 :
+  79;
+
+const total = subtotal + delivery;
 
     const order = await razorpay.orders.create({
       amount: total * 100,
