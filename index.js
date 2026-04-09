@@ -79,7 +79,7 @@ app.post("/create-order", verifyFirebaseAuth, async (req, res) => {
   subtotal > 1500 ? 0 :
   subtotal >= 1000 ? 49 :
   subtotal >= 500 ? 59 :
-  69;
+  1;
 
 const total = subtotal + delivery;
 
